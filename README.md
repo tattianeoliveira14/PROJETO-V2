@@ -275,5 +275,5 @@
 
 # 3\. A interface SPA se conectará de forma invisível à API local. A partir daí, basta arrastar imagens de teste de placas de circuito impresso para a área de upload e analisar em tempo real os mapeamentos de defeitos, os KPIs industriais e os gráficos de controle estatístico!
 
-![Arquitetura](<img width="800" height="571" alt="pcbqueimado6" src="https://github.com/user-attachments/assets/aaa8ff6e-3404-4e3c-926e-0d9b7090c3e7" />
+(<img width="800" height="571" alt="pcbqueimado6" src="https://github.com/user-attachments/assets/aaa8ff6e-3404-4e3c-926e-0d9b7090c3e7" />
 )
