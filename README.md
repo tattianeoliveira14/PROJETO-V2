@@ -10,16 +10,15 @@
 
 # 
 
-# \## 👥 Integrantes da Equipe e Papéis
+# \## 👥 Integrantes da Equipe
 
-# \* \*\*\[NOME COMPLETO - MEMBRO 1]\*\* - Engenharia de IA, Dataset e Treinamento do Modelo YOLOv8 (`best.pt`).
+# \* \*\*\[João Pedro Bezerra]\*\* 
 
-# \* \*\*\[NOME COMPLETO - MEMBRO 2]\*\* - Desenvolvimento do Back-end, Estruturação da API REST e Regras de Negócio (`FastAPI`).
+# \* \*\*\[Adan Cristyan]\*\* 
 
-# \* \*\*\[NOME COMPLETO - MEMBRO 3]\*\* - Desenvolvimento do Front-end UI/UX, Interface SPA e Visualização de Dados (`Dashboard/Chart.js`).
+# \* \*\*\[Bryan Rongelli]\*\* 
 
-# \* \*\*\[NOME COMPLETO - MEMBRO 4]\*\* - Engenharia de Software, Gestão de Repositório, QA e Documentação Técnica.
-
+# \* \*\*\[Tatiane Oliveira]\*\* 
 # 
 
 # \---
