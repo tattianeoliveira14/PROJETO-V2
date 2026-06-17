@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PCB Inspector — Inspeção de Qualidade</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg:        #0a0e17;
+    --surface:   #111827;
+    --surface2:  #1a2235;
+    --border:    #1f2f4a;
+    --accent:    #00d4ff;
+    --accent2:   #0066ff;
+    --green:     #00ff88;
+    --red:       #ff3b5c;
+    --orange:    #ff9500;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 1.5rem;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── KPI Strip ── */
+  .kpi-strip {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-kpi, var(--accent));
+  }
+
+  .kpi-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: var(--mono);
+  }
+
+  .kpi-value {
+    font-family: var(--mono);
+    font-size: 2rem;
+    font-weight: 700;
+    margin-top: 4px;
+    color: var(--text);
+  }
+
+  .kpi-sub {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ── Upload Zone ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--surface2);
+    margin-bottom: 1rem;
+  }
+
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--accent);
+    background: rgba(0,212,255,.04);
+  }
+
+  .upload-zone input { display: none; }
+
+  .upload-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+
+  .upload-zone p {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .upload-zone strong { color: var(--accent); }
+
+  /* ── Botões ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: var(--sans);
+    transition: all .2s;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #fff;
+  }
+
+  .btn-primary:hover { opacity: .85; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  .btn-danger {
+    background: rgba(255,59,92,.12);
+    color: var(--red);
+    border: 1px solid rgba(255,59,92,.2);
+  }
+
+  .btn-danger:hover { background: rgba(255,59,92,.2); }
+
+  /* ── Resultado ── */
+  .result-img-wrap {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #resultImg {
+    width: 100%;
+    display: block;
+    border-radius: 8px;
+  }
+
+  .placeholder-msg {
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  /* ── Badge status ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-family: var(--mono);
+    letter-spacing: 0.05em;
+  }
+
+  .badge-aprovado { background: rgba(0,255,136,.12); color: var(--green); border: 1px solid rgba(0,255,136,.2); }
+  .badge-reprovado { background: rgba(255,59,92,.12); color: var(--red); border: 1px solid rgba(255,59,92,.2); }
+  .badge-critico { background: rgba(255,59,92,.2); color: var(--red); border: 1px solid var(--red); animation: blink .8s infinite; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  /* ── Detecções list ── */
+  .det-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+  .det-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-family: var(--mono);
+  }
+
+  .det-class { display: flex; align-items: center; gap: 6px; }
+  .det-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .det-conf { color: var(--muted); }
+
+  /* ── Recommendation ── */
+  .recommendation {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.83rem;
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+
+  .rec-critico  { background: rgba(255,59,92,.08);  border-left: 3px solid var(--red);    color: #ffa0b0; }
+  .rec-moderado { background: rgba(255,149,0,.08);  border-left: 3px solid var(--orange); color: #ffd080; }
+  .rec-leve     { background: rgba(255,149,0,.06);  border-left: 3px solid var(--orange); color: #ffd080; }
+  .rec-nenhum   { background: rgba(0,255,136,.06);  border-left: 3px solid var(--green);  color: #80ffb0; }
+
+  /* ── Gráfico ── */
+  .chart-wrap { height: 200px; position: relative; }
+
+  /* ── Histórico ── */
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    font-family: var(--mono);
+  }
+
+  .history-table th {
+    text-align: left;
+    color: var(--muted);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+
+  .history-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(31,47,74,.5);
+  }
+
+  .history-table tr:hover td { background: var(--surface2); }
+
+  .tag-ok  { color: var(--green); }
+  .tag-rep { color: var(--red);   }
+
+  /* ── Alert Banner ── */
+  #alertBanner {
+    display: none;
+    grid-column: 1 / -1;
+    background: rgba(255,59,92,.1);
+    border: 1px solid rgba(255,59,92,.4);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-weight: 600;
+    color: var(--red);
+    font-size: 0.9rem;
+    animation: blink 1s infinite;
+  }
+
+  /* ── Loader ── */
+  .loader {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 2rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Sidebar ── */
+  .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+  .main-col { display: flex; flex-direction: column; gap: 1rem; }
+
+  /* ── Metric rows ── */
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+  }
+
+  .metric-row:last-child { border-bottom: none; }
+  .metric-val { font-family: var(--mono); font-weight: 700; }
+
+  /* ── Progress bar ── */
+  .progress-wrap { margin-top: 4px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+  .progress-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+
+  @media (max-width: 900px) {
+    .container { grid-template-columns: 1fr; }
+    .kpi-strip { grid-template-columns: repeat(2,1fr); }
+    .sidebar { order: -1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔬</div>
+    PCB Inspector
+  </div>
+  <div class="status-bar">
+    <div class="dot" id="apiDot"></div>
+    <span id="apiStatus">Conectando à API...</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Alert Banner -->
+  <div id="alertBanner">
+    ⚠️ ALERTA: Taxa de rejeição acima do limite! Verificar linha de produção.
+  </div>
+
+  <!-- KPI Strip -->
+  <div class="kpi-strip">
+    <div class="kpi" style="--accent-kpi: var(--accent)">
+      <div class="kpi-label">Inspecionadas</div>
+      <div class="kpi-value" id="kpiTotal">0</div>
+      <div class="kpi-sub">peças na sessão</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: var(--green)">
+      <div class="kpi-label">Aprovadas</div>
+      <div class="kpi-value" id="kpiOk">0</div>
+      <div class="kpi-sub">sem defeitos</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: var(--red)">
+      <div class="kpi-label">Reprovadas</div>
+      <div class="kpi-value" id="kpiNok">0</div>
+      <div class="kpi-sub">com defeitos</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: var(--orange)">
+      <div class="kpi-label">Taxa de Rejeição</div>
+      <div class="kpi-value" id="kpiRate">0%</div>
+      <div class="kpi-sub">meta: abaixo de 20%</div>
+    </div>
+  </div>
+
+  <!-- Coluna principal -->
+  <div class="main-col">
+
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-title">📁 Upload de Imagem</div>
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*" multiple/>
+        <div class="upload-icon">🖼️</div>
+        <p><strong>Clique ou arraste</strong> uma imagem de PCB aqui</p>
+        <p>Formatos: JPG, PNG, BMP · Máx 10MB</p>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btnInspect" disabled>🔍 Inspecionar</button>
+        <button class="btn btn-danger" id="btnReset">🗑️ Zerar sessão</button>
+        <label style="font-size:.8rem; color:var(--muted); margin-left:auto;">
+          Conf. mínima:
+          <input type="range" id="confSlider" min="10" max="90" value="25"
+            style="vertical-align:middle; accent-color:var(--accent); width:80px;"/>
+          <span id="confVal" style="font-family:var(--mono); color:var(--accent);">25%</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Resultado visual -->
+    <div class="card">
+      <div class="card-title">🖥️ Resultado da Inspeção</div>
+      <div class="result-img-wrap">
+        <div class="loader" id="loader">
+          <div class="spinner"></div>
+          Analisando imagem...
+        </div>
+        <img id="resultImg" style="display:none;" alt="Resultado"/>
+        <div class="placeholder-msg" id="placeholder">
+          Nenhuma imagem inspecionada ainda.<br>Faça o upload acima para começar.
+        </div>
+      </div>
+    </div>
+
+    <!-- Histórico -->
+    <div class="card">
+      <div class="card-title">📋 Histórico da Sessão</div>
+      <div style="overflow-x:auto;">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Arquivo</th>
+              <th>Defeitos</th>
+              <th>Área (%)</th>
+              <th>Severidade</th>
+              <th>Status</th>
+              <th>ms</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="7" style="color:var(--muted); padding:12px 8px;">Nenhuma inspeção realizada.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Status da peça atual -->
+    <div class="card">
+      <div class="card-title">✅ Status da Peça</div>
+      <div id="pieceStatus">
+        <div style="color:var(--muted); font-size:.85rem;">Aguardando inspeção...</div>
+      </div>
+    </div>
+
+    <!-- Defeitos detectados -->
+    <div class="card">
+      <div class="card-title">🔍 Defeitos Detectados</div>
+      <div id="detList">
+        <div style="color:var(--muted); font-size:.82rem;">—</div>
+      </div>
+    </div>
+
+    <!-- Gráfico de defeitos -->
+    <div class="card">
+      <div class="card-title">📊 Defeitos por Classe</div>
+      <div class="chart-wrap">
+        <canvas id="defectChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Métricas da sessão -->
+    <div class="card">
+      <div class="card-title">📈 Métricas da Sessão</div>
+      <div id="sessionMetrics">
+        <div class="metric-row">
+          <span>Aprovação</span>
+          <span class="metric-val tag-ok" id="mAprov">—</span>
+        </div>
+        <div class="metric-row">
+          <span>Rejeição</span>
+          <span class="metric-val tag-rep" id="mRej">—</span>
+        </div>
+        <div class="metric-row">
+          <span>Defeito mais comum</span>
+          <span class="metric-val" id="mCommon" style="font-size:.75rem;">—</span>
+        </div>
+        <div class="progress-wrap" style="margin-top:10px;">
+          <div class="progress-label">
+            <span>Taxa de rejeição</span>
+            <span id="mRejPct">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="mRejBar"
+              style="width:0%; background: linear-gradient(90deg, var(--green), var(--orange));"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+
+// Cores das classes
+const CLASS_COLORS = {
+  damaged:       '#ff3b5c',
+  lack_of_part:  '#ff9500',
+  miss_welding:  '#ffff00',
+  redundant:     '#a855f7',
+  Short_circuit: '#3b82f6',
+  slug:          '#22c55e',
+  spillover:     '#ec4899',
+};
+
+// ── Estado ────────────────────────────────────────────────────────────────────
+let selectedFile = null;
+let defectChartInstance = null;
+let sessionDefects = {};
+
+// ── Init Chart ────────────────────────────────────────────────────────────────
+function initChart() {
+  const ctx = document.getElementById('defectChart').getContext('2d');
+  defectChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Ocorrências',
+        data: [],
+        backgroundColor: [],
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#1f2f4a' } },
+        y: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#1f2f4a' } }
+      }
+    }
+  });
+}
+
+function updateChart() {
+  const labels = Object.keys(sessionDefects);
+  const data = Object.values(sessionDefects);
+  const colors = labels.map(l => CLASS_COLORS[l] || '#64748b');
+  defectChartInstance.data.labels = labels;
+  defectChartInstance.data.datasets[0].data = data;
+  defectChartInstance.data.datasets[0].backgroundColor = colors.map(c => c + '99');
+  defectChartInstance.data.datasets[0].borderColor = colors;
+  defectChartInstance.update();
+}
+
+// ── API Health ────────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    document.getElementById('apiDot').style.background = '#00ff88';
+    document.getElementById('apiDot').style.boxShadow = '0 0 6px #00ff88';
+    document.getElementById('apiStatus').textContent = 'API online · modelo carregado';
+  } catch {
+    document.getElementById('apiDot').style.background = '#ff3b5c';
+    document.getElementById('apiDot').style.boxShadow = '0 0 6px #ff3b5c';
+    document.getElementById('apiStatus').textContent = 'API offline — inicie o servidor';
+  }
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const btnInspect = document.getElementById('btnInspect');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+function setFile(file) {
+  selectedFile = file;
+  dropZone.querySelector('p').innerHTML = `<strong>${file.name}</strong> — ${(file.size/1024).toFixed(0)} KB`;
+  dropZone.querySelector('.upload-icon').textContent = '✅';
+  btnInspect.disabled = false;
+}
+
+// ── Confidence slider ─────────────────────────────────────────────────────────
+const confSlider = document.getElementById('confSlider');
+confSlider.addEventListener('input', () => {
+  document.getElementById('confVal').textContent = confSlider.value + '%';
+});
+
+// ── Inspecionar ───────────────────────────────────────────────────────────────
+btnInspect.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  // Show loader
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('resultImg').style.display = 'none';
+  const loader = document.getElementById('loader');
+  loader.style.display = 'flex';
+  btnInspect.disabled = true;
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+  const conf = confSlider.value / 100;
+
+  try {
+    const res = await fetch(`${API}/inspect?conf=${conf}`, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    renderResult(data);
+    updateSessionKPIs(data.stats);
+  } catch (err) {
+    alert('Erro ao conectar à API: ' + err.message + '\n\nVerifique se o servidor está rodando em localhost:8000');
+  } finally {
+    loader.style.display = 'none';
+    btnInspect.disabled = false;
+  }
+});
+
+// ── Renderizar resultado ──────────────────────────────────────────────────────
+function renderResult(data) {
+  // Imagem anotada
+  const img = document.getElementById('resultImg');
+  img.src = 'data:image/jpeg;base64,' + data.annotated_image;
+  img.style.display = 'block';
+
+  const biz = data.business;
+
+  // Status da peça
+  const statusEl = document.getElementById('pieceStatus');
+  const badgeClass = biz.severity === 'crítico' ? 'badge-critico' :
+                     biz.status === 'aprovado'  ? 'badge-aprovado' : 'badge-reprovado';
+  const statusIcon = biz.status === 'aprovado' ? '✅' : '❌';
+
+  statusEl.innerHTML = `
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span class="badge ${badgeClass}">${statusIcon} ${biz.status.toUpperCase()}</span>
+      <span style="font-size:.78rem; color:var(--muted); font-family:var(--mono);">${data.inference_ms}ms</span>
+    </div>
+    <div class="metric-row">
+      <span>Defeitos detectados</span>
+      <span class="metric-val">${data.num_defects}</span>
+    </div>
+    <div class="metric-row">
+      <span>Área defeituosa</span>
+      <span class="metric-val">${biz.defect_area_pct}%</span>
+    </div>
+    <div class="metric-row">
+      <span>Severidade</span>
+      <span class="metric-val" style="color:${biz.severity==='crítico'?'var(--red)':biz.severity==='nenhum'?'var(--green)':'var(--orange)'};">
+        ${biz.severity}
+      </span>
+    </div>
+    <div class="recommendation rec-${biz.severity}">
+      ${biz.recommendation}
+    </div>
+  `;
+
+  // Lista de defeitos
+  const detEl = document.getElementById('detList');
+  if (data.detections.length === 0) {
+    detEl.innerHTML = '<div style="color:var(--green); font-size:.82rem;">Nenhum defeito encontrado ✓</div>';
+  } else {
+    detEl.innerHTML = '<div class="det-list">' +
+      data.detections.map(d => `
+        <div class="det-item">
+          <div class="det-class">
+            <div class="det-dot" style="background:${CLASS_COLORS[d.class]||'#888'}"></div>
+            ${d.class}
+          </div>
+          <span class="det-conf">${(d.confidence*100).toFixed(0)}%</span>
+        </div>
+      `).join('') + '</div>';
+  }
+
+  // Atualizar sessionDefects
+  for (const [cls, cnt] of Object.entries(data.class_counts)) {
+    sessionDefects[cls] = (sessionDefects[cls] || 0) + cnt;
+  }
+  updateChart();
+
+  // Adicionar ao histórico
+  addHistoryRow(data);
+}
+
+// ── Histórico ─────────────────────────────────────────────────────────────────
+let historyCount = 0;
+function addHistoryRow(data) {
+  historyCount++;
+  const body = document.getElementById('historyBody');
+  if (historyCount === 1) body.innerHTML = '';
+
+  const biz = data.business;
+  const statusClass = biz.status === 'aprovado' ? 'tag-ok' : 'tag-rep';
+  const name = data.filename.length > 20 ? data.filename.substring(0, 18) + '…' : data.filename;
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${historyCount}</td>
+    <td>${name}</td>
+    <td>${data.detections ? data.detections.length : 0}</td>
+    <td>${biz.defect_area_pct}%</td>
+    <td>${biz.severity}</td>
+    <td class="${statusClass}">${biz.status}</td>
+    <td>${data.inference_ms}</td>
+  `;
+  body.insertBefore(tr, body.firstChild);
+}
+
+// ── KPIs da sessão ────────────────────────────────────────────────────────────
+function updateSessionKPIs(stats) {
+  document.getElementById('kpiTotal').textContent = stats.total_inspected;
+  document.getElementById('kpiOk').textContent = stats.total_inspected - stats.total_defective;
+  document.getElementById('kpiNok').textContent = stats.total_defective;
+  document.getElementById('kpiRate').textContent = stats.rejection_rate_pct + '%';
+
+  // Métricas sidebar
+  const aprovPct = stats.total_inspected > 0
+    ? (100 - stats.rejection_rate_pct).toFixed(1) : '—';
+  document.getElementById('mAprov').textContent = aprovPct + '%';
+  document.getElementById('mRej').textContent = stats.rejection_rate_pct + '%';
+  document.getElementById('mRejPct').textContent = stats.rejection_rate_pct + '%';
+  document.getElementById('mRejBar').style.width = Math.min(stats.rejection_rate_pct, 100) + '%';
+
+  // Defeito mais comum
+  if (Object.keys(sessionDefects).length > 0) {
+    const top = Object.entries(sessionDefects).sort((a,b) => b[1]-a[1])[0];
+    document.getElementById('mCommon').textContent = `${top[0]} (${top[1]}×)`;
+  }
+
+  // Alert banner
+  if (stats.rejection_rate_pct > 20 && stats.total_inspected >= 3) {
+    document.getElementById('alertBanner').style.display = 'block';
+  }
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+document.getElementById('btnReset').addEventListener('click', async () => {
+  if (!confirm('Zerar todas as estatísticas da sessão?')) return;
+  try {
+    await fetch(`${API}/reset`, { method: 'DELETE' });
+  } catch {}
+  // Reset local
+  sessionDefects = {};
+  historyCount = 0;
+  selectedFile = null;
+  document.getElementById('kpiTotal').textContent = '0';
+  document.getElementById('kpiOk').textContent = '0';
+  document.getElementById('kpiNok').textContent = '0';
+  document.getElementById('kpiRate').textContent = '0%';
+  document.getElementById('historyBody').innerHTML = '<tr><td colspan="7" style="color:var(--muted); padding:12px 8px;">Nenhuma inspeção realizada.</td></tr>';
+  document.getElementById('pieceStatus').innerHTML = '<div style="color:var(--muted); font-size:.85rem;">Aguardando inspeção...</div>';
+  document.getElementById('detList').innerHTML = '<div style="color:var(--muted); font-size:.82rem;">—</div>';
+  document.getElementById('resultImg').style.display = 'none';
+  document.getElementById('placeholder').style.display = 'block';
+  document.getElementById('alertBanner').style.display = 'none';
+  document.getElementById('mAprov').textContent = '—';
+  document.getElementById('mRej').textContent = '—';
+  document.getElementById('mCommon').textContent = '—';
+  document.getElementById('mRejBar').style.width = '0%';
+  document.getElementById('dropZone').querySelector('p').innerHTML = '<strong>Clique ou arraste</strong> uma imagem de PCB aqui';
+  document.getElementById('dropZone').querySelector('.upload-icon').textContent = '🖼️';
+  btnInspect.disabled = true;
+  updateChart();
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+initChart();
+checkHealth();
+setInterval(checkHealth, 10000);
+</script>
+</body>
+</html>
